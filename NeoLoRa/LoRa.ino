@@ -54,9 +54,9 @@ void onReceive(int packetSize) {
 
   last_received = incoming;
 
-  if (incoming == "LED_ON") {
+  if (incoming == "ON") {
     led_enabled = true;
-  } else if (incoming == "LED_OFF") {
+  } else if (incoming == "OFF") {
     led_enabled = false;
     FastLED.clear();
     FastLED.show();

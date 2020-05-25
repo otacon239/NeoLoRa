@@ -1,3 +1,5 @@
+// This code was made for the TTGO LoRa32, but should work with the rights PINs set on any Arduino with the necessary LoRa hardware
+
 #include "FastLED.h"
 #include "SSD1306.h"
 #include "SPI.h"
@@ -19,14 +21,17 @@
 
 #define PRG 0 // Onboard button pin
 #define LED 2 // Onboard LED
+#define SCRWIDTH 128 // Width of onboard OLED
+#define SCRHEIGHT 64
+#define YOFFSET 1 // Used to give room for the animations
 
-String outgoing;              // outgoing message
+String outgoing; // outgoing message
 
-byte msgCount = 0;            // count of outgoing messages
-byte localAddress = 0xBB;     // address of this device
-byte destination = 0xFF;      // destination to send to
-long lastSendTime = 0;        // last send time
-int interval = 10000;          // interval between sends
+byte msgCount = 0; // count of outgoing messages
+byte localAddress = 0xBB; // address of this device
+byte destination = 0xFF; // destination to send to
+long lastSendTime = 0; // last send time
+int interval = 10000; // interval between sends
 
 int time_offset = 0; // Used for calculating sync offset
 int remote_millis = 0; // Remote device current time
@@ -34,12 +39,38 @@ bool transmitter = true; // Device defaults to transmitter mode - automatically 
 String last_sent; // Keep track of the most recent broadcasted message
 String last_received; // Keep track of the most recent received message
 
-SSD1306 display (0x3c, 4, 15); // Define display
+SSD1306 display(0x3c, 4, 15); // Define display
+int yvals[128]; // Useful for plotting data
+int line = 0; // Used for keeping track of which line of text you're on
+int lnspace = 10; // Line spacing for text
+int txtheight = 10; // Used to separately calculate screen overflow
 
 bool led_enabled = false; // Toggle for Neopixels
 CRGB leds[LED_COUNT]; // Store LED values
 
 bool booted = false; // Variable to keep track of setup() state
+
+bool txt(String input = "----", bool scrupdate = false, int custom_line = -1) { // Draw a string with automatic line arrangement
+  int txty = line*lnspace+YOFFSET;
+
+  if (txty+txtheight > SCRHEIGHT) { return false; }
+  
+  display.drawString(0, txty, input);
+  if (scrupdate) {
+    display.display();
+  }
+  
+  if (custom_line == -1) {
+    line++; // Increment line
+  }
+  
+  return true;
+}
+
+void cldsp() { // Clear display and reset line
+  display.clear();
+  line = 0;
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -61,58 +92,47 @@ void setup() {
     NULL
   );
 
-  pinMode (16, OUTPUT); // OLED enable
-  pinMode (LED, OUTPUT); // Onboard LED
-  pinMode (PRG, INPUT); // Onboard button
+  pinMode(16, OUTPUT); // OLED enable
+  pinMode(LED, OUTPUT); // Onboard LED
+  pinMode(PRG, INPUT); // Onboard button
 
-  digitalWrite (16, LOW); // set GPIO16 low to reset OLED
-  delay (50);
-  digitalWrite (16, HIGH); // while OLED is running, GPIO16 must go high
+  digitalWrite(16, LOW); // set GPIO16 low to reset OLED
+  delay(50);
+  digitalWrite(16, HIGH); // while OLED is running, GPIO16 must go high
 
   // Initialize display
-  display.init ();
-  display.flipScreenVertically ();
-  display.setFont (ArialMT_Plain_10);
+  display.init();
+  display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_10);
   display.setTextAlignment(TEXT_ALIGN_LEFT);
 
   // Loading animation
-  int dot_delay = 100;
-  for (int i = 0; i < 5; i++) {
-    display.clear();
-    display.drawString(0, 1, "LoRa Sync Test");
-    display.drawString(0, 11, "PRG = Receive Mode");
-    display.display();
+  int dot_delay = 50;
+  for (int i = 0; i < 60; i++) {
+    String dots = "";
+    for (int j = 0; j < i%4; j++) {
+      dots += ".";
+    }
+    String lorasync = "LoRa Sync Test" + dots;
+    txt(lorasync);
+    
+    txt("PRG = Receive Mode", true);
+    
     delay(dot_delay);
-    display.clear();
-    display.drawString(0, 1, "LoRa Sync Test.");
-    display.drawString(0, 11, "PRG = Receive Mode");
-    display.display();
-    delay(dot_delay);
-    display.clear();
-    display.drawString(0, 1, "LoRa Sync Test..");
-    display.drawString(0, 11, "PRG = Receive Mode");
-    display.display();
-    delay(dot_delay);
-    display.clear();
-    display.drawString(0, 1, "LoRa Sync Test...");
-    display.drawString(0, 11, "PRG = Receive Mode");
-    display.display();
-    delay(dot_delay);
+    cldsp();
   }
 
   if (!transmitter) {
-    display.drawString(0, 21, "Receive Mode enabled");
-    display.display();
+    txt("Receive Mode enabled", true);
     delay(2000);
   }
 
   // Enable LoRa
-  SPI.begin (SCK, MISO, MOSI, SS);
-  LoRa.setPins (SS, RST, DI0);
-  if (! LoRa.begin (868)) {
-    display.drawString(0, 11, "Starting LoRa failed!");
-    display.display();
-    while (1);
+  SPI.begin(SCK, MISO, MOSI, SS);
+  LoRa.setPins(SS, RST, DI0);
+  if (!LoRa.begin(868)) {
+    txt("Starting LoRa failed!", true);
+    while(1);
   }
 
   // Initialize FastLED
@@ -124,8 +144,6 @@ void setup() {
   FastLED.clear();
   FastLED.show();
 
-  delay (1000);
-
   if (transmitter) { // Send initial sync message
     String message = String(millis());
     sendMessage(message);
@@ -136,18 +154,16 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  display.clear();
-
-  int x_prog = int(((millis() + time_offset) % 1000 / 1000.0) * 128);
-
+  cldsp();
+  int x_prog = int(((millis() + time_offset) % 1000 / 1000.0) * 128); // Used for calculating the x position of the moving part on the sync animations
+  
   if (transmitter) {
-    display.drawString(0, 1, "Transmitting...");
+    txt("Transmitting...");
 
     if (millis() % 2000 < 1000) { // Animate using millis as reference
       display.drawLine(0, 1, x_prog, 1);
     } else { // Even second
-      display.drawLine(x_prog, 1, 127, 1);
+      display.drawLine(x_prog, 1, SCRWIDTH-1, 1);
     }
 
     if (millis() - lastSendTime > interval) { // Broadcast millis every interval
@@ -157,13 +173,13 @@ void loop() {
     }
     
   } else if (!time_offset) { // Waiting for signal
-    display.drawString(0, 1, "Receive Mode");
-    display.drawString(0, 31, "Waiting for signal");
+    txt("Receive Mode");
+    txt("Waiting for signal");
 
     // Waiting for signal animation
     int dashes = 10;
-    int dash_space = int(127.0 / dashes);
-    int dash_width = 127 / dashes / 2;
+    int dash_space = int((SCRWIDTH-1) / dashes);
+    int dash_width = (SCRWIDTH-1) / dashes / 2;
     int dash_offset = int((-millis() * .02)) % dash_space;
 
     for (int i = 0; i < dashes; i++) {
@@ -172,27 +188,27 @@ void loop() {
     }
     
   } else { // Signal received
-    display.drawString(0, 1, "Receiving...");
+    txt("Receiving...");
 
     if ((millis() + time_offset) % 2000 < 1000) { // Opposite behavior of transmitter
-      display.drawLine(127, 1, 127 - x_prog, 1);
+      display.drawLine(SCRWIDTH-1, 1, SCRWIDTH-1 - x_prog, 1);
     } else {
-      display.drawLine(127 - x_prog, 1, 0, 1);
+      display.drawLine(SCRWIDTH-1 - x_prog, 1, 0, 1);
     }
   }
 
   if (led_enabled) { // Display LED status
-    display.drawString(0, 11, "LEDs: ON");
+    txt("LEDs: ON");
   } else {
-    display.drawString(0, 11, "LEDs: OFF");
+    txt("LEDs: OFF");
   }
 
-  display.drawString(0, 21, "PRG = LED Toggle");
-  
-  display.drawString(0, 41, "TX: ");
-  display.drawString(20, 41, last_sent);
-  display.drawString(0, 51, "RX: ");
-  display.drawString(20, 51, last_received);
+  txt("PRG = LED Toggle");
+
+  String tx = "TX: " + last_sent;
+  String rx = "RX: " + last_received;
+  txt(tx);
+  txt(rx);
 
   display.display();
   onReceive(LoRa.parsePacket());
