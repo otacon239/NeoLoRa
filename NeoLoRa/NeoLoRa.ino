@@ -31,6 +31,8 @@ int interval = 10000;          // interval between sends
 int time_offset = 0; // Used for calculating sync offset
 int remote_millis = 0; // Remote device current time
 bool transmitter = true; // Device defaults to transmitter mode - automatically switches to receiver upon first received message
+String last_sent; // Keep track of the most recent broadcasted message
+String last_received; // Keep track of the most recent received message
 
 SSD1306 display (0x3c, 4, 15); // Define display
 
@@ -140,8 +142,7 @@ void loop() {
   int x_prog = int(((millis() + time_offset) % 1000 / 1000.0) * 128);
 
   if (transmitter) {
-    display.drawString(0, 1, "Transmitting: ");
-    display.drawString(60, 1, String(millis()));
+    display.drawString(0, 1, "Transmitting...");
 
     if (millis() % 2000 < 1000) { // Animate using millis as reference
       display.drawLine(0, 1, x_prog, 1);
@@ -157,7 +158,7 @@ void loop() {
     
   } else if (!time_offset) { // Waiting for signal
     display.drawString(0, 1, "Receive Mode");
-    display.drawString(0, 21, "Waiting for signal");
+    display.drawString(0, 31, "Waiting for signal");
 
     // Waiting for signal animation
     int dashes = 10;
@@ -171,8 +172,7 @@ void loop() {
     }
     
   } else { // Signal received
-    display.drawString(0, 1, "Receiving: ");
-    display.drawString(49, 1, String(millis() + time_offset));
+    display.drawString(0, 1, "Receiving...");
 
     if ((millis() + time_offset) % 2000 < 1000) { // Opposite behavior of transmitter
       display.drawLine(127, 1, 127 - x_prog, 1);
@@ -188,6 +188,11 @@ void loop() {
   }
 
   display.drawString(0, 21, "PRG = LED Toggle");
+  
+  display.drawString(0, 41, "TX: ");
+  display.drawString(20, 41, last_sent);
+  display.drawString(0, 51, "RX: ");
+  display.drawString(20, 51, last_received);
 
   display.display();
   onReceive(LoRa.parsePacket());

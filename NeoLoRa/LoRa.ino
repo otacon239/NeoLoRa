@@ -1,4 +1,14 @@
+void flash(int num_flashes = 1, int flash_speed = 75) {
+  for (int i = 0; i < num_flashes; i++) {
+      digitalWrite(LED, HIGH);
+      delay(flash_speed);
+      digitalWrite(LED, LOW);
+      delay(flash_speed);
+  }
+}
+
 void sendMessage(String outgoing) {
+  last_sent = outgoing;
   LoRa.beginPacket();                   // start packet
   LoRa.write(destination);              // add destination address
   LoRa.write(localAddress);             // add sender address
@@ -9,9 +19,7 @@ void sendMessage(String outgoing) {
   msgCount++;                           // increment message ID
 
   // Flash Onboard LED once for outgoing message
-  digitalWrite(LED, HIGH);
-  delay(50);
-  digitalWrite(LED, LOW);
+  flash();
 }
 
 void onReceive(int packetSize) {
@@ -31,14 +39,20 @@ void onReceive(int packetSize) {
 
   if (incomingLength != incoming.length()) {   // check length for error
     Serial.println("error: message length does not match length");
+    last_received = "LEN_ERR";
+    flash(3);
     return;                             // skip rest of function
   }
 
   // if the recipient isn't this device or broadcast,
   if (recipient != localAddress && recipient != 0xFF) {
     Serial.println("This message is not for me.");
+    last_received = "WRONG_DEV";
+    flash(3);
     return;                             // skip rest of function
   }
+
+  last_received = incoming;
 
   if (incoming == "LED_ON") {
     led_enabled = true;
@@ -53,11 +67,5 @@ void onReceive(int packetSize) {
   }
 
   // Flash Onboard LED twice for incoming message
-  digitalWrite(LED, HIGH);
-  delay(50);
-  digitalWrite(LED, LOW);
-  delay(50);
-  digitalWrite(LED, HIGH);
-  delay(50);
-  digitalWrite(LED, LOW);
+  flash(2);
 }
