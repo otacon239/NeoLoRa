@@ -113,18 +113,20 @@ void setup() {
     for (int j = 0; j < i%4; j++) {
       dots += ".";
     }
+    
     String lorasync = "LoRa Sync Test" + dots;
     txt(lorasync);
     
-    txt("PRG = Receive Mode", true);
+    txt("PRG = Receive Mode");
+
+    if (!transmitter) {
+      txt("Receive Mode enabled");
+    }
+
+    display.display();
     
     delay(dot_delay);
     cldsp();
-  }
-
-  if (!transmitter) {
-    txt("Receive Mode enabled", true);
-    delay(2000);
   }
 
   // Enable LoRa
