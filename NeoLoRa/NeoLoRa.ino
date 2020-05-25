@@ -99,7 +99,7 @@ void setup() {
   }
 
   if (!transmitter) {
-    display.drawString(0, 21, "Receiver Mode enabled");
+    display.drawString(0, 21, "Receive Mode enabled");
     display.display();
     delay(2000);
   }
@@ -156,7 +156,7 @@ void loop() {
     }
     
   } else if (!time_offset) { // Waiting for signal
-    display.drawString(0, 1, "Receiver Mode");
+    display.drawString(0, 1, "Receive Mode");
     display.drawString(0, 21, "Waiting for signal");
 
     // Waiting for signal animation
@@ -186,6 +186,8 @@ void loop() {
   } else {
     display.drawString(0, 11, "LEDs: OFF");
   }
+
+  display.drawString(0, 21, "PRG = LED Toggle");
 
   display.display();
   onReceive(LoRa.parsePacket());
