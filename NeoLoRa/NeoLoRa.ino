@@ -31,39 +31,51 @@ byte msgCount = 0; // count of outgoing messages
 byte localAddress = 0xBB; // address of this device
 byte destination = 0xFF; // destination to send to
 long lastSendTime = 0; // last send time
-int interval = 10000; // interval between sends
+int interval = 5000; // interval between sends
 
 int time_offset = 0; // Used for calculating sync offset
 int remote_millis = 0; // Remote device current time
-bool transmitter = true; // Device defaults to transmitter mode - automatically switches to receiver upon first received message
-String last_sent; // Keep track of the most recent broadcasted message
-String last_received; // Keep track of the most recent received message
+bool transmitter = false; // Device defaults to receive mode - PRG button must be pressed during boot to become the new transmitter
+String last_sent = ""; // Keep track of the most recent broadcasted message
+String last_received = ""; // Keep track of the most recent received message
+float idle_timeout = 120000; // How long, in ms, before the device defaults to transmit mode, assuming it won't get a signal
+int last_rx_time = 0;  // How long since the last message
 
 SSD1306 display(0x3c, 4, 15); // Define display
-int yvals[128]; // Useful for plotting data
+int yvals[128]; // Useful for plotting data - currently unused
 int line = 0; // Used for keeping track of which line of text you're on
 int lnspace = 10; // Line spacing for text
 int txtheight = 10; // Used to separately calculate screen overflow
+int txtoffset = 0; // Offsets the text on y axis by this many pixels - can be adjusted per-line as needed
 
 bool led_enabled = false; // Toggle for Neopixels
 CRGB leds[LED_COUNT]; // Store LED values
 
 bool booted = false; // Variable to keep track of setup() state
 
-bool txt(String input = "----", bool scrupdate = false, int custom_line = -1) { // Draw a string with automatic line arrangement
-  int txty = line*lnspace+YOFFSET;
+bool txt(String input = "", bool scrupdate = false, int custom_line = -1) { // Draw a string with automatic line arrangement
+  int txty = line * lnspace + YOFFSET;
 
-  if (txty+txtheight > SCRHEIGHT) { return false; }
-  
+  if (input == "---") {
+    txty++;
+    display.drawLine(0, txty, SCRWIDTH - 1, txty);
+    txtoffset += 2;
+    return true;
+  }
+
+  if (txty + txtheight > SCRHEIGHT) {
+    return false;
+  }
+
   display.drawString(0, txty, input);
   if (scrupdate) {
     display.display();
   }
-  
+
   if (custom_line == -1) {
     line++; // Increment line
   }
-  
+
   return true;
 }
 
@@ -82,7 +94,7 @@ void setup() {
     1, // Priority
     NULL // Handle
   );
-  
+
   xTaskCreate( // Scheduled loop for handling button input
     ButtonPoll,
     "ButtonPoll",
@@ -110,21 +122,25 @@ void setup() {
   int dot_delay = 50;
   for (int i = 0; i < 60; i++) {
     String dots = "";
-    for (int j = 0; j < i%4; j++) {
+    for (int j = 0; j < i % 4; j++) {
       dots += ".";
     }
-    
+
     String lorasync = "LoRa Sync Test" + dots;
     txt(lorasync);
-    
-    txt("PRG = Receive Mode");
 
-    if (!transmitter) {
-      txt("Receive Mode enabled");
+    txt("PRG = Transmit Mode");
+    txt("---");
+
+    if (transmitter) {
+      txt("Transmit Mode enabled");
+    } else {
+      txt("Transmit Mode will start");
+      txt("automatically in 2m");
     }
 
     display.display();
-    
+
     delay(dot_delay);
     cldsp();
   }
@@ -134,7 +150,7 @@ void setup() {
   LoRa.setPins(SS, RST, DI0);
   if (!LoRa.begin(868)) {
     txt("Starting LoRa failed!", true);
-    while(1);
+    while (1);
   }
 
   // Initialize FastLED
@@ -151,21 +167,31 @@ void setup() {
     sendMessage(message);
     lastSendTime = millis();
   }
-  
+
   booted = true;
 }
 
 void loop() {
   cldsp();
-  int x_prog = int(((millis() + time_offset) % 1000 / 1000.0) * 128); // Used for calculating the x position of the moving part on the sync animations
   
+  last_rx_time = millis() + time_offset - remote_millis; // Calculate how long since the last message
+  if (!transmitter) {
+    if (last_rx_time > idle_timeout) {
+      transmitter = true;
+    } else if (last_rx_time > idle_timeout * .5) {
+      txt("TX timeout in " + String(int((idle_timeout - last_rx_time) / 1000)));
+    }
+  }
+
+  int x_prog = int((((millis() + time_offset) % 1000) / 1000.0) * SCRWIDTH); // Used for calculating the x position of the moving part on the sync animations
+
   if (transmitter) {
     txt("Transmitting...");
 
-    if (millis() % 2000 < 1000) { // Animate using millis as reference
+    if ((millis() + time_offset) % 2000 < 1000) { // Animate using millis as reference
       display.drawLine(0, 1, x_prog, 1);
-    } else { // Even second
-      display.drawLine(x_prog, 1, SCRWIDTH-1, 1);
+    } else { // Even other second
+      display.drawLine(x_prog, 1, SCRWIDTH - 1, 1);
     }
 
     if (millis() - lastSendTime > interval) { // Broadcast millis every interval
@@ -173,31 +199,32 @@ void loop() {
       sendMessage(message);
       lastSendTime = millis();
     }
-    
+
   } else if (!time_offset) { // Waiting for signal
-    txt("Receive Mode");
-    txt("Waiting for signal");
+    txt("Waiting for signal...");
 
     // Waiting for signal animation
     int dashes = 10;
-    int dash_space = int((SCRWIDTH-1) / dashes);
-    int dash_width = (SCRWIDTH-1) / dashes / 2;
+    int dash_space = int((SCRWIDTH - 1) / dashes);
+    int dash_width = (SCRWIDTH - 1) / dashes / 2;
     int dash_offset = int((-millis() * .02)) % dash_space;
 
     for (int i = 0; i < dashes; i++) {
       display.drawLine(dash_space * i + dash_offset, 1, // x1, y1
-      dash_space * i + dash_width + dash_offset, 1); // x2, y2
+                       dash_space * i + dash_width + dash_offset, 1); // x2, y2
     }
-    
+
   } else { // Signal received
     txt("Receiving...");
 
     if ((millis() + time_offset) % 2000 < 1000) { // Opposite behavior of transmitter
-      display.drawLine(SCRWIDTH-1, 1, SCRWIDTH-1 - x_prog, 1);
+      display.drawLine(SCRWIDTH - 1, 1, SCRWIDTH - 1 - x_prog, 1);
     } else {
-      display.drawLine(SCRWIDTH-1 - x_prog, 1, 0, 1);
+      display.drawLine(SCRWIDTH - 1 - x_prog, 1, 0, 1);
     }
   }
+
+  txt("---");
 
   if (led_enabled) { // Display LED status
     txt("LEDs: ON");
@@ -207,10 +234,17 @@ void loop() {
 
   txt("PRG = LED Toggle");
 
-  String tx = "TX: " + last_sent;
-  String rx = "RX: " + last_received;
-  txt(tx);
-  txt(rx);
+  txt("---");
+
+  if (last_sent != "")  {
+    String tx = "TX: " + last_sent;
+    txt(tx);
+  }
+
+  if (last_received != "") {
+    String rx = "RX: " + last_received + " (" + String(LoRa.packetRssi(), DEC) + " dB)";
+    txt(rx);
+  }
 
   display.display();
   onReceive(LoRa.parsePacket());

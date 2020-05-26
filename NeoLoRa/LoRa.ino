@@ -1,9 +1,9 @@
 void flash(int num_flashes = 1, int flash_speed = 75) {
   for (int i = 0; i < num_flashes; i++) {
-      digitalWrite(LED, HIGH);
-      delay(flash_speed);
-      digitalWrite(LED, LOW);
-      delay(flash_speed);
+    digitalWrite(LED, HIGH);
+    delay(flash_speed);
+    digitalWrite(LED, LOW);
+    delay(flash_speed);
   }
 }
 

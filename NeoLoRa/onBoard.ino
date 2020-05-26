@@ -12,7 +12,7 @@ void ButtonPoll(void * parameter) { // Run FastLED commands here
 
       if (buttonState) {
         if (!booted) { // Code to run before setup() is complete
-          transmitter = false;
+          transmitter = true;
         } else {
           led_enabled = !led_enabled;
           if (led_enabled) {
