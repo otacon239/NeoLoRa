@@ -38,7 +38,7 @@ int remote_millis = 0; // Remote device current time
 bool transmitter = false; // Device defaults to receive mode - PRG button must be pressed during boot to become the new transmitter
 String last_sent = ""; // Keep track of the most recent broadcasted message
 String last_received = ""; // Keep track of the most recent received message
-float idle_timeout = 120000; // How long, in ms, before the device defaults to transmit mode, assuming it won't get a signal
+float idle_timeout = 30000; // How long, in ms, before the device defaults to transmit mode, assuming it won't get a signal
 int last_rx_time = 0;  // How long since the last message
 
 SSD1306 display(0x3c, 4, 15); // Define display
@@ -136,7 +136,7 @@ void setup() {
       txt("Transmit Mode enabled");
     } else {
       txt("Transmit Mode will start");
-      txt("automatically in 2m");
+      txt("automatically in " + String(int(idle_timeout/1000)) + "s");
     }
 
     display.display();
@@ -183,12 +183,14 @@ void loop() {
     }
   }
 
-  int x_prog = int((((millis() + time_offset) % 1000) / 1000.0) * SCRWIDTH); // Used for calculating the x position of the moving part on the sync animations
+  int x_prog;
 
   if (transmitter) {
+    x_prog = int(((millis() % 1000) / 1000.0) * SCRWIDTH); // Used for calculating the x position of the moving part on the sync animations
+    
     txt("Transmitting...");
-
-    if ((millis() + time_offset) % 2000 < 1000) { // Animate using millis as reference
+    
+    if (millis() % 2000 < 1000) { // Animate using millis as reference
       display.drawLine(0, 1, x_prog, 1);
     } else { // Even other second
       display.drawLine(x_prog, 1, SCRWIDTH - 1, 1);
@@ -215,6 +217,8 @@ void loop() {
     }
 
   } else { // Signal received
+    x_prog = int((((millis() + time_offset) % 1000) / 1000.0) * SCRWIDTH); // Used for calculating the x position of the moving part on the sync animations
+    
     txt("Receiving...");
 
     if ((millis() + time_offset) % 2000 < 1000) { // Opposite behavior of transmitter
