@@ -16,9 +16,9 @@ void ButtonPoll(void * parameter) { // Run FastLED commands here
         } else {
           led_enabled = !led_enabled;
           if (led_enabled) {
-            sendMessage("ON");
+            sendMessage("I");
           } else {
-            sendMessage("OFF");
+            sendMessage("O");
             FastLED.clear();
             FastLED.show();
           }

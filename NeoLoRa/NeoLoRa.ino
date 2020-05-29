@@ -11,7 +11,7 @@
 #define SS 18 // GPIO18 - SX1278's CS
 #define RST 14 // GPIO14 - SX1278's RESET
 #define DI0 26 // GPIO26 - SX1278's IRQ (interrupt request)
-#define BAND 868E6 // 915E6
+#define BAND 915E6 // 915E6
 
 #define LED_PIN 21 // Neopixel Data Out Pin
 #define LED_TYPE WS2812
